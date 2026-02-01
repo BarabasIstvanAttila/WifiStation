@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  esp32-server:
+    build: .
+    container_name: esp32-camera-server
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - UPLOAD_FOLDER=/data/photos
+      - AUTH_USERNAME=admin
+      - AUTH_PASSWORD=changeme123
+      - REQUIRE_AUTH=true
+    volumes:
+      - ./photos:/data/photos
