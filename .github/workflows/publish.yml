@@ -19,5 +19,5 @@ jobs:
         with:
           context: ./Backend
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/esp32-camera-server:latest
+          tags: ghcr.io/barabasistvanattila/esp32-camera-server:0.0.1
           file: ./Backend/Dockerfile
