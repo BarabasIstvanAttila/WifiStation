@@ -32,4 +32,3 @@ jobs:
           docker pull ghcr.io/barabasistvanattila/esp32-camera-server:0.0.1
           docker images | grep esp32-camera-server
           docker run --rm ghcr.io/barabasistvanattila/esp32-camera-server:0.0.1 python --version
-          docker run --rm -p 8080:8080 ghcr.io/barabasistvanattila/esp32-camera-server:0.0.1 curl -I http://localhost:8080/health || true

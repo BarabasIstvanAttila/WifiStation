@@ -4,6 +4,7 @@ from datetime import datetime
 import logging
 
 app = Flask(__name__)
+app.config['MAX_CONTENT_LENGTH'] = 20 * 1024 * 1024  # 20 MB limit
 
 UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', '/data/photos')
 AUTH_USERNAME = os.getenv('AUTH_USERNAME', 'admin')
