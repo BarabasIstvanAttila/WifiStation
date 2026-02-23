@@ -1,0 +1,437 @@
+menu "Camera Web Server Configuration"
+
+    # ── WiFi ──────────────────────────────────────────────────────────────────
+
+    menu "WiFi"
+
+        config APP_WIFI_SSID
+            string "WiFi SSID"
+            default "myssid"
+            help
+                SSID (network name) for the camera server to connect to.
+                Maximum 31 characters.
+
+        config APP_WIFI_PASSWORD
+            string "WiFi Password"
+            default "mypassword"
+            help
+                WPA/WPA2 password for the network above.
+                Leave empty for open networks.
+
+        config APP_WIFI_MAX_RETRY
+            int "Maximum connection retry count"
+            default 10
+            range 1 30
+            help
+                Number of reconnection attempts before giving up.
+                The camera will still run locally; only HTTP access is lost.
+
+    endmenu  # WiFi
+
+    # ── Camera hardware ────────────────────────────────────────────────────────
+
+    menu "Camera Hardware"
+
+        choice APP_CAMERA_BOARD
+            prompt "Camera board preset"
+            default APP_CAMERA_BOARD_AI_THINKER
+            help
+                Select the ESP32-CAM board variant.  This determines the GPIO
+                pin mapping applied to the camera driver.  Choose CUSTOM to
+                supply your own pin definitions in camera_hal_config_t.
+
+            config APP_CAMERA_BOARD_AI_THINKER
+                bool "AI Thinker (OV2640)"
+            config APP_CAMERA_BOARD_WROVER_KIT
+                bool "ESP-WROVER-KIT"
+            config APP_CAMERA_BOARD_ESP_EYE
+                bool "ESP-EYE"
+            config APP_CAMERA_BOARD_M5STACK_PSRAM
+                bool "M5Stack PSRAM"
+            config APP_CAMERA_BOARD_CUSTOM
+                bool "Custom (set pins manually)"
+        endchoice
+
+        choice APP_CAMERA_FRAMESIZE
+            prompt "Default frame size"
+            default APP_CAMERA_FRAMESIZE_VGA
+            help
+                Resolution used at boot.  Can be changed at runtime via
+                the sensor API without a reboot.
+
+            config APP_CAMERA_FRAMESIZE_QQVGA
+                bool "QQVGA  160×120"
+            config APP_CAMERA_FRAMESIZE_QVGA
+                bool "QVGA   320×240"
+            config APP_CAMERA_FRAMESIZE_VGA
+                bool "VGA    640×480"
+            config APP_CAMERA_FRAMESIZE_SVGA
+                bool "SVGA   800×600"
+            config APP_CAMERA_FRAMESIZE_XGA
+                bool "XGA   1024×768"
+            config APP_CAMERA_FRAMESIZE_HD
+                bool "HD    1280×720"
+            config APP_CAMERA_FRAMESIZE_UXGA
+                bool "UXGA  1600×1200"
+        endchoice
+
+        config APP_CAMERA_JPEG_QUALITY
+            int "JPEG compression quality"
+            default 12
+            range 4 63
+            help
+                Lower values = better quality but larger frames.
+                Recommended range: 4 (best) to 63 (smallest).
+                Values below 10 may cause frame drops on slow networks.
+
+        config APP_CAMERA_FB_COUNT
+            int "Frame buffer count"
+            default 2
+            range 1 4
+            help
+                Number of DMA frame buffers allocated in PSRAM.
+                Use 1 for snapshot-only, 2+ for smooth streaming.
+                Requires enough free PSRAM.
+
+        config APP_CAMERA_FLASH_WARMUP_MS
+            int "Flash LED auto-exposure warmup time (ms)"
+            default 250
+            range 50 1000
+            help
+                Time in milliseconds to wait after turning the flash LED on
+                before capturing the frame.
+
+                During this window the OV2640 AE (auto-exposure) and AWB
+                (auto-white-balance) circuits adapt to the new light level.
+                One stale frame captured before the flash lit is also discarded.
+
+                Shorter values risk an under-exposed or wrongly white-balanced
+                image.  250 ms is approximately 7 frames at 30 fps and is
+                sufficient for most indoor conditions.
+
+                Has no effect on boards where no flash LED is configured
+                (pin_flash_led == -1, e.g. WROVER-KIT, ESP-EYE).
+
+    endmenu  # Camera Hardware
+
+    # ── HTTP server ────────────────────────────────────────────────────────────
+
+    menu "HTTP Server"
+
+        config APP_HTTP_PORT
+            int "HTTP server port"
+            default 80
+            range 1 65535
+            help
+                TCP port the camera web server listens on.
+
+        config APP_HTTP_MAX_URI_HANDLERS
+            int "Maximum number of URI handlers"
+            default 8
+            range 4 16
+            help
+                Maximum simultaneously registered URI routes.
+                Increase if you add custom endpoints.
+
+        config APP_HTTP_STACK_SIZE
+            int "HTTP server task stack size (bytes)"
+            default 8192
+            range 4096 32768
+            help
+                FreeRTOS stack allocated to the HTTP server task.
+                Increase if you observe stack-overflow panics during streaming.
+
+    endmenu  # HTTP Server
+
+    # ── Power management ───────────────────────────────────────────────────────
+
+    menu "Power Management"
+
+        choice APP_POWER_SAVE_MODE
+            prompt "WiFi power save mode"
+            default APP_POWER_SAVE_MIN_MODEM
+            help
+                Controls how aggressively the WiFi modem sleeps between beacons.
+
+                None          — modem always on; lowest latency, highest power.
+                Minimum modem — wakes every DTIM beacon; balanced.
+                Maximum modem — wakes every listen interval; lowest power,
+                                broadcast frames may be lost.
+
+            config APP_POWER_SAVE_NONE
+                bool "None (always on)"
+            config APP_POWER_SAVE_MIN_MODEM
+                bool "Minimum modem sleep"
+            config APP_POWER_SAVE_MAX_MODEM
+                bool "Maximum modem sleep"
+        endchoice
+
+        config APP_WIFI_LISTEN_INTERVAL
+            int "WiFi listen interval (beacon intervals)"
+            default 3
+            range 1 10
+            depends on APP_POWER_SAVE_MAX_MODEM
+            help
+                Only relevant in Maximum modem sleep mode.
+                Station wakes every N beacon intervals to check for traffic.
+                Higher = more power saved but more broadcast packet loss.
+
+        choice APP_MAX_CPU_FREQ
+            prompt "Maximum CPU frequency"
+            default APP_MAX_CPU_FREQ_160
+            depends on PM_ENABLE
+            help
+                Upper bound for dynamic frequency scaling.
+                The camera JPEG encoder benefits from 160 MHz or higher.
+
+            config APP_MAX_CPU_FREQ_80
+                bool "80 MHz"
+            config APP_MAX_CPU_FREQ_160
+                bool "160 MHz"
+                depends on !IDF_TARGET_ESP32C2
+            config APP_MAX_CPU_FREQ_240
+                bool "240 MHz"
+                depends on IDF_TARGET_ESP32 || IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32S3
+        endchoice
+
+        config APP_MAX_CPU_FREQ_MHZ
+            int
+            default 80  if APP_MAX_CPU_FREQ_80
+            default 160 if APP_MAX_CPU_FREQ_160
+            default 240 if APP_MAX_CPU_FREQ_240
+
+        choice APP_MIN_CPU_FREQ
+            prompt "Minimum CPU frequency"
+            default APP_MIN_CPU_FREQ_10M
+            depends on PM_ENABLE
+            help
+                Lower bound for dynamic frequency scaling during idle periods.
+                Must match or divide evenly into the crystal frequency.
+
+            config APP_MIN_CPU_FREQ_40M
+                bool "40 MHz (40 MHz XTAL)"
+                depends on XTAL_FREQ_40 || XTAL_FREQ_AUTO
+            config APP_MIN_CPU_FREQ_20M
+                bool "20 MHz (40 MHz XTAL)"
+                depends on XTAL_FREQ_40 || XTAL_FREQ_AUTO
+            config APP_MIN_CPU_FREQ_10M
+                bool "10 MHz (40 MHz XTAL)"
+                depends on XTAL_FREQ_40 || XTAL_FREQ_AUTO
+        endchoice
+
+        config APP_MIN_CPU_FREQ_MHZ
+            int
+            default 40 if APP_MIN_CPU_FREQ_40M
+            default 20 if APP_MIN_CPU_FREQ_20M
+            default 10 if APP_MIN_CPU_FREQ_10M
+
+    endmenu  # Power Management
+
+    # ── Cloud upload ──────────────────────────────────────────────────────────
+
+    menu "Cloud Upload"
+
+        config APP_UPLOAD_ENDPOINT_URL
+            string "Upload endpoint URL"
+            default "https://your-bucket.s3.amazonaws.com/camera/monthly.jpg?<presigned-params>"
+            help
+                Full URL of the HTTP/HTTPS endpoint that receives the JPEG image.
+
+                AWS S3 presigned PUT URL:
+                  https://<bucket>.s3.<region>.amazonaws.com/<key>?X-Amz-Signature=…
+                  Generate with: aws s3 presign s3://<bucket>/<key> --expires-in 2678400
+
+                Azure Blob SAS PUT URL:
+                  https://<account>.blob.core.windows.net/<container>/<blob>?sv=…&sig=…
+
+                Custom HTTP POST server:
+                  http://192.168.1.100:8080/upload
+
+                The URL is embedded in the firmware.  For presigned URLs that
+                expire, regenerate and reflash before the expiry date.
+
+        choice APP_UPLOAD_METHOD
+            prompt "HTTP upload method"
+            default APP_UPLOAD_METHOD_PUT
+            help
+                PUT  — required for S3 presigned URLs and Azure SAS.
+                POST — use for custom servers or multipart-aware endpoints.
+
+            config APP_UPLOAD_METHOD_PUT
+                bool "PUT (S3 presigned, Azure SAS, plain REST)"
+            config APP_UPLOAD_METHOD_POST
+                bool "POST (custom server, form upload)"
+        endchoice
+
+        config APP_UPLOAD_RETRY_COUNT
+            int "Upload retry count"
+            default 3
+            range 0 10
+            help
+                Number of additional attempts after the first failure.
+                0 = try once only.  Retries use exponential back-off
+                starting at 2 seconds.
+
+        config APP_UPLOAD_TIMEOUT_MS
+            int "Upload HTTP timeout (ms)"
+            default 30000
+            range 5000 120000
+            help
+                Maximum time in milliseconds for a single upload attempt,
+                including TLS handshake, data transfer, and server response.
+                Increase for slow networks or large frame sizes.
+
+        config APP_UPLOAD_CHUNK_SIZE
+            int "PSRAM-to-SRAM chunk size (bytes)"
+            default 4096
+            range 512 4096
+            help
+                Bytes copied from PSRAM into the internal SRAM scratch buffer
+                per write call.  Must be ≤ 4096.  Smaller values reduce peak
+                SRAM usage; larger values improve throughput slightly.
+
+        config APP_UPLOAD_SKIP_TLS_VERIFY
+            bool "Skip TLS certificate verification (development only)"
+            default n
+            help
+                When enabled the uploader accepts any server certificate,
+                including self-signed ones.  NEVER enable in production —
+                this disables all protection against MITM attacks.
+
+        config APP_UPLOAD_USERNAME
+            string "Upload server username"
+            default ""
+            help
+                Username for HTTP Basic Authentication on the upload endpoint.
+                Leave empty to send no Authorization header (e.g. for
+                presigned S3 URLs which embed credentials in the URL itself).
+
+                Credentials are base64-encoded and sent as:
+                  Authorization: Basic base64("<username>:<password>")
+                Always use HTTPS when credentials are configured.
+
+        config APP_UPLOAD_PASSWORD
+            string "Upload server password"
+            default ""
+            help
+                Password for HTTP Basic Authentication.
+                Only used when APP_UPLOAD_USERNAME is non-empty.
+
+        config APP_UPLOAD_WINDOW_DAYS
+            int "Upload window — days before end of month"
+            default 5
+            range 1 28
+            help
+                The device uploads once per day during the last N days of each
+                month.  With N=5 in a 31-day month, uploads run on days 27–31.
+                With N=1, only the last day of the month triggers an upload.
+
+                Per-day deduplication is enforced via RTC slow memory: even if
+                the device reboots mid-day, it will not upload twice on the
+                same calendar day.
+
+    endmenu  # Cloud Upload
+
+    # ── NTP time synchronisation ───────────────────────────────────────────────
+
+    menu "NTP Time Synchronisation"
+
+        config APP_SNTP_SERVER
+            string "NTP server hostname"
+            default "pool.ntp.org"
+            help
+                Hostname of the NTP server used to set the system clock after
+                each deep-sleep wake.  pool.ntp.org is a public anycast pool.
+                Use a regional pool (e.g. europe.pool.ntp.org) for lower latency.
+
+        config APP_SNTP_TIMEOUT_MS
+            int "NTP sync timeout (ms)"
+            default 10000
+            range 3000 30000
+            help
+                How long to wait for the first NTP response.  If no response
+                arrives within this window the device logs an error and still
+                proceeds — the upload will be skipped because the date cannot
+                be determined reliably.
+
+        config APP_TIMEZONE
+            string "POSIX timezone string"
+            default "UTC"
+            help
+                Controls localtime() and mktime() — essential for correct
+                last-day-of-month detection.
+
+                Examples:
+                  UTC
+                  EST5EDT,M3.2.0,M11.1.0          (US Eastern)
+                  CET-1CEST,M3.5.0,M10.5.0/3      (Central Europe)
+                  AEST-10AEDT,M10.1.0,M4.1.0/3    (Australia Eastern)
+
+                If you set this wrong, the last-day check runs at the wrong
+                local time and may miss or double-trigger the upload.
+
+    endmenu  # NTP Time Synchronisation
+
+    # ── Wake / sleep schedule ──────────────────────────────────────────────────
+
+    menu "Wake and Sleep Schedule"
+
+        config APP_DAILY_CHECK_HOUR
+            int "Daily check hour (0–23, local time)"
+            default 22
+            range 0 23
+            help
+                The device wakes once per day at this hour to check whether
+                today falls within the upload window.  If it does, and today's
+                upload has not yet happened, it captures and uploads.
+
+                Choose a time when your network is reliably available and
+                ambient light is acceptable for photography (or rely on flash).
+
+        config APP_DAILY_CHECK_MINUTE
+            int "Daily check minute (0–59)"
+            default 0
+            range 0 59
+            help
+                Minute within APP_DAILY_CHECK_HOUR at which the check runs.
+
+    endmenu  # Wake and Sleep Schedule
+
+    # ── Test mode ──────────────────────────────────────────────────────────────
+    #
+    # DANGER: enabling this in production wastes bandwidth and may exhaust
+    # upload quotas.  It is intended for bench-testing the upload pipeline
+    # without waiting for the end of the month.
+
+    menu "Test Mode (development only)"
+
+        config APP_TEST_UPLOAD_MODE
+            bool "Enable test upload mode"
+            default n
+            help
+                When enabled the device bypasses all scheduling logic and
+                uploads an image on every wake cycle, regardless of the date.
+
+                The upload window check and the per-day deduplication guard are
+                both skipped.  mark_uploaded() is never called, so the device
+                re-arms and uploads again after APP_TEST_UPLOAD_INTERVAL_S
+                seconds.
+
+                A prominent WARNING is printed at every boot while this flag
+                is set so the firmware cannot accidentally ship in test mode.
+
+                NEVER enable in production firmware.
+
+        config APP_TEST_UPLOAD_INTERVAL_S
+            int "Test upload interval (seconds)"
+            default 60
+            range 10 3600
+            depends on APP_TEST_UPLOAD_MODE
+            help
+                How many seconds to sleep between uploads in test mode.
+                Default is 60 (once per minute).  The device enters deep sleep
+                for this duration and then performs a full reboot/upload cycle.
+
+    endmenu  # Test Mode
+
+endmenu  # Camera Web Server Configuration

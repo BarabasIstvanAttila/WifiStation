@@ -1,0 +1,92 @@
+#
+# sdkconfig.defaults — ESP32 Camera Web Server
+#
+# PURPOSE
+# ───────
+# This file seeds the build system with project-specific defaults the first
+# time `idf.py menuconfig` (or `idf.py build`) is run, or after
+# `idf.py fullclean`.  It does NOT override values the developer has already
+# set interactively in sdkconfig — those always win.
+#
+# STRUCTURE
+# ─────────
+# Sections follow the same order as the generated sdkconfig so diffs are easy
+# to read.  Each knob explains WHY it is set, not just what it does.
+#
+
+# ── CPU frequency ─────────────────────────────────────────────────────────────
+# Default to 160 MHz.  The OV2640 JPEG encoder is compute-bound; 80 MHz causes
+# frame drops at VGA+ resolutions.  240 MHz is unnecessary and increases heat.
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_160=y
+
+# ── PSRAM ─────────────────────────────────────────────────────────────────────
+# Camera frame buffers (esp_camera fb_location = CAMERA_FB_IN_PSRAM) require
+# PSRAM.  All AI-Thinker and M5Stack-PSRAM boards ship with 4 MB PSRAM.
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_MODE_QUAD=y
+CONFIG_SPIRAM_SPEED_80M=y
+# Allow heap allocations to fall back to PSRAM when internal SRAM is full.
+CONFIG_SPIRAM_USE_MALLOC=y
+CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=16384
+# Allocate large contiguous DMA buffers (frame buffers) in PSRAM.
+CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERN_MEMORY=y
+
+# ── Power management ──────────────────────────────────────────────────────────
+# Enable the ESP-IDF power management API so the app can call esp_pm_configure.
+CONFIG_PM_ENABLE=y
+# Tickless idle lets FreeRTOS sleep the CPU during idle ticks instead of
+# spinning, which dramatically reduces heat and power between frames.
+CONFIG_FREERTOS_USE_TICKLESS_IDLE=y
+# Keep PM and RTOS idle paths in IRAM so they run after flash cache is off.
+CONFIG_PM_SLP_IRAM_OPT=y
+CONFIG_PM_RTOS_IDLE_OPT=y
+# Float GPIO outputs low during light sleep to prevent phantom current draw.
+CONFIG_PM_SLP_DISABLE_GPIO=y
+# Keep the WiFi sleep IRAM hot path in IRAM to reduce wakeup latency.
+CONFIG_ESP_WIFI_SLP_IRAM_OPT=y
+
+# ── FreeRTOS tick rate ────────────────────────────────────────────────────────
+# 1000 Hz gives 1 ms timer resolution, which lowers the minimum sleep duration
+# threshold and improves power management granularity.
+CONFIG_FREERTOS_HZ=1000
+
+# ── WiFi ──────────────────────────────────────────────────────────────────────
+# Keep WiFi TX/RX buffers in IRAM for lower latency during MJPEG streaming.
+CONFIG_ESP_WIFI_IRAM_OPT=y
+CONFIG_ESP_WIFI_RX_IRAM_OPT=y
+# Dynamic buffer allocation for WiFi TX; prevents large static memory reservations.
+CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER=y
+CONFIG_ESP_WIFI_TX_BUFFER_TYPE=1
+CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER_NUM=32
+# Increase RX buffer count to absorb burst traffic during streaming.
+CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM=16
+CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM=32
+
+# ── HTTP server ───────────────────────────────────────────────────────────────
+# Raise the default send timeout; MJPEG frames can be large (>50 KB at UXGA).
+CONFIG_HTTPD_MAX_REQ_HDR_LEN=1024
+CONFIG_HTTPD_MAX_URI_LEN=512
+# Allow more simultaneous open sockets (snapshot + stream + status at once).
+CONFIG_LWIP_MAX_SOCKETS=16
+
+# ── lwIP / TCP ────────────────────────────────────────────────────────────────
+# Larger TCP send and receive windows improve MJPEG throughput on fast LANs.
+CONFIG_LWIP_TCP_SND_BUF_DEFAULT=65535
+CONFIG_LWIP_TCP_WND_DEFAULT=65535
+CONFIG_LWIP_TCP_RECVMBOX_SIZE=16
+# Reduce TCP keepalive defaults so stale streaming connections are detected
+# faster, freeing sockets for new clients.
+CONFIG_LWIP_TCP_KEEPALIVE_IDLE=7
+CONFIG_LWIP_TCP_KEEPALIVE_COUNT=3
+CONFIG_LWIP_TCP_KEEPALIVE_INTERVAL=3
+
+# ── Logging ───────────────────────────────────────────────────────────────────
+# Info level in production; change to DEBUG when diagnosing issues.
+CONFIG_LOG_DEFAULT_LEVEL_INFO=y
+CONFIG_LOG_MAXIMUM_LEVEL_DEBUG=y
+
+# ── Watchdog ──────────────────────────────────────────────────────────────────
+# MJPEG streaming holds the HTTP task for long periods; prevent task-WDT
+# from firing during normal streaming.  The interrupt WDT is left at its
+# default (shorter) window to still catch hard hangs.
+CONFIG_ESP_TASK_WDT_TIMEOUT_S=10
