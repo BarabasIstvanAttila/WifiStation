@@ -30,7 +30,7 @@
 #include "camera_hal.h"
 #include "image_capture.h"
 #include "wifi_manager.h"
-#include "sntp_sync.h"
+#include "ntp_sync.h"
 #include "image_uploader.h"
 #include "upload_scheduler.h"
 
@@ -191,12 +191,12 @@ void app_main(void)
     /* ── 4. SNTP ─────────────────────────────────────────────────────────── */
     bool time_ok = false;
     if (wifi_ok) {
-        sntp_sync_config_t sntp_cfg = { .sync_timeout_ms = APP_SNTP_TIMEOUT_MS };
+        ntp_sync_config_t sntp_cfg = { .sync_timeout_ms = APP_SNTP_TIMEOUT_MS };
         strncpy(sntp_cfg.server,   APP_SNTP_SERVER, sizeof(sntp_cfg.server)   - 1);
         strncpy(sntp_cfg.tz_posix, APP_TIMEZONE,    sizeof(sntp_cfg.tz_posix) - 1);
 
-        ESP_ERROR_CHECK(sntp_sync_init(&sntp_cfg));
-        time_ok = (sntp_sync_wait(APP_SNTP_TIMEOUT_MS) == ESP_OK);
+        ESP_ERROR_CHECK(ntp_sync_init(&sntp_cfg));
+        time_ok = (ntp_sync_wait(APP_SNTP_TIMEOUT_MS) == ESP_OK);
 
         if (!time_ok) {
             ESP_LOGE(TAG, "SNTP sync failed — upload skipped this cycle");
@@ -235,7 +235,7 @@ void app_main(void)
 
     /* ── 6. Teardown ─────────────────────────────────────────────────────── */
     if (wifi_ok) {
-        sntp_sync_deinit();
+        ntp_sync_deinit();
         wifi_manager_deinit();
     }
     camera_hal_deinit();

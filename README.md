@@ -55,17 +55,29 @@ curl http://localhost:8080/health
 
 ### Step 2: Configure ESP32
 
-Edit `main/config.h`:
-```c
-#define WIFI_SSID "YourWiFiName"
-#define WIFI_PASSWORD "YourPassword"
-#define SERVER_URL "http://192.168.1.100:8080/upload"
+```bash
+# Install ESP-IDF
+git clone --recursive https://github.com/espressif/esp-idf.git
+cd esp-idf && ./install.sh && source ./export.sh
+
+# 1. Configure — set WiFi, endpoint URL, credentials
+idf.py menuconfig
+# → Camera Web Server Configuration → WiFi
+# → Camera Web Server Configuration → Cloud Upload
+# → Camera Web Server Configuration → NTP Time Synchronisation
+
+# -- Server url: "http://192.168.1.100:8080/upload"
+
+# Add extra components
+# Fetch the managed camera package
+idf.py add-dependency "espressif/esp32-camera"
 ```
 
 ### Step 3: Flash ESP32
 # Read the esp 32 doc for setup
 # https://docs.espressif.com/projects/esp-idf/en/v4.3/esp32/get-started/index.html
-# Alias enabled: alias get_idf='. $HOME/esp/esp-idf/export.sh' ### source ~/.profile
+# Alias enabled: alias get_idf='. $HOME/esp/esp-idf/export.sh' 
+# loads the right path to profile: source ~/.profile
 
 ```bash
 # Grant permissions: 
@@ -77,10 +89,6 @@ ls /dev/tty*
 ```
 
 ```bash
-# Install ESP-IDF
-git clone --recursive https://github.com/espressif/esp-idf.git
-cd esp-idf && ./install.sh && source ./export.sh
-
 # Build and flash
 cd /path/to/monthly_camera
 idf.py build
@@ -88,11 +96,10 @@ idf.py -p /dev/ttyUSB0 flash monitor
 ```
 
 ### Step 4: Test
-
-Uncomment `#define TEST_MODE` in config.h to test every 60 seconds instead of monthly.
+# Enable test mode for bench validation (uploads every 60 s)
+# → Camera Web Server Configuration → Test Mode → Enable test upload mode
 
 ---
-
 
 
 ## 🔋 Power Consumption

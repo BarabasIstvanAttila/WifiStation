@@ -84,6 +84,14 @@ esp_err_t image_capture_acquire_frame(capture_frame_t *out_frame)
                  CONFIG_APP_CAMERA_FLASH_WARMUP_MS);
     }
 
+    sensor_t *s = camera_hal_get_sensor();
+    if (!s) {
+        ESP_LOGE(TAG, "Sensor not initialized!");
+    } else {
+        ESP_LOGI(TAG, "Sensor model: 0x%04x, status: %d",
+             s->id.pid, s->status);
+    }
+
     /* Step 4: Capture the well-exposed frame. */
     camera_fb_t *fb = esp_camera_fb_get();
 
