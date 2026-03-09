@@ -69,11 +69,6 @@ extern "C" {
 #define APP_CAMERA_QUALITY   CONFIG_APP_CAMERA_JPEG_QUALITY
 #define APP_CAMERA_FB_COUNT  CONFIG_APP_CAMERA_FB_COUNT
 
-/* ── HTTP server ──────────────────────────────────────────────────────────── */
-
-#define APP_HTTP_PORT             CONFIG_APP_HTTP_PORT
-#define APP_HTTP_MAX_URI_HANDLERS CONFIG_APP_HTTP_MAX_URI_HANDLERS
-#define APP_HTTP_STACK_SIZE       CONFIG_APP_HTTP_STACK_SIZE
 
 /* ── Power management — WiFi power save ──────────────────────────────────── */
 
