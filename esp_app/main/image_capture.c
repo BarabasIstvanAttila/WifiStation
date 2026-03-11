@@ -17,115 +17,62 @@
 
 #include "image_capture.h"
 #include "camera_hal.h"
-
-#include <string.h>
 #include "esp_log.h"
-#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "sdkconfig.h"
 
 static const char *TAG = "image_capture";
-
-/* ── Module state ─────────────────────────────────────────────────────────── */
-
 static uint32_t s_frame_count = 0;
 
-/* ── Internal helpers ─────────────────────────────────────────────────────── */
-
-/*
- * Discard one frame from the driver pool without exposing it to the caller.
- * Used to let the sensor's AE/AWB settle after the flash is switched on.
+/**
+ * @brief Safely clears the camera buffer queue.
+ * This prevents the "timeout" by ensuring the DMA engine is ready.
  */
-static void discard_one_frame(void)
-{
-    camera_fb_t *fb = esp_camera_fb_get();
+static void clear_stale_buffers(void) {
+    camera_fb_t *fb = NULL;
+    // Get and immediately return a frame to "flush" the sensor state
+    fb = esp_camera_fb_get();
     if (fb) {
         esp_camera_fb_return(fb);
     }
 }
 
-/* ── Public API ───────────────────────────────────────────────────────────── */
-
-esp_err_t image_capture_acquire_frame(capture_frame_t *out_frame)
-{
+esp_err_t image_capture_acquire_frame(capture_frame_t *out_frame) {
     if (!out_frame) return ESP_ERR_INVALID_ARG;
-
-    if (!camera_hal_is_ready()) {
-        ESP_LOGE(TAG, "Camera not initialised");
-        return ESP_ERR_INVALID_STATE;
-    }
+    if (!camera_hal_is_ready()) return ESP_ERR_INVALID_STATE;
 
     bool using_flash = camera_hal_has_flash();
 
     if (using_flash) {
-        /*
-         * Step 1: Turn the flash on.
-         * The LED is high-intensity; the sensor AE circuit will immediately
-         * start closing the aperture/reducing gain.  We must give it time.
-         */
         camera_hal_set_flash(true);
+        
+        // 1. Clear the stale frame captured BEFORE the flash was on
+        clear_stale_buffers();
 
-        /*
-         * Step 2: Discard one stale frame that was captured before the flash
-         * lit — it will be dark or wrongly exposed.
-         */
-        discard_one_frame();
-
-        /*
-         * Step 3: Wait for AE/AWB to converge under flash illumination.
-         * CONFIG_APP_CAMERA_FLASH_WARMUP_MS is set in Kconfig (default 250 ms).
-         * The OV2640 runs at up to 30 fps (33 ms/frame); 250 ms ≈ 7 frames,
-         * which is sufficient for AE convergence in most indoor conditions.
-         */
+        // 2. Wait for Auto Exposure to settle
         vTaskDelay(pdMS_TO_TICKS(CONFIG_APP_CAMERA_FLASH_WARMUP_MS));
-
-        ESP_LOGD(TAG, "Flash on, AE warmup %d ms complete",
-                 CONFIG_APP_CAMERA_FLASH_WARMUP_MS);
     }
 
-    sensor_t *s = camera_hal_get_sensor();
-    if (!s) {
-        ESP_LOGE(TAG, "Sensor not initialized!");
-    } else {
-        ESP_LOGI(TAG, "Sensor model: 0x%04x, status: %d",
-             s->id.pid, s->status);
-    }
-
-    /* Step 4: Capture the well-exposed frame. */
+    // 3. Capture the actual image
+    // Note: We avoid heavy Log statements or I2C sensor reads here to keep timing tight
     camera_fb_t *fb = esp_camera_fb_get();
 
+    // 4. Turn off flash immediately to save power and prevent heat
     if (using_flash) {
-        /*
-         * Step 5: Turn flash off immediately after the frame is latched.
-         * Do this before any error check so the LED is never left on.
-         */
         camera_hal_set_flash(false);
     }
 
     if (!fb) {
-        ESP_LOGE(TAG, "Frame buffer capture failed");
-        return ESP_FAIL;
+        ESP_LOGE(TAG, "Frame buffer capture failed: Timeout or No Buffer");
+        return ESP_FAIL; 
     }
 
-    out_frame->fb           = fb;
+    // Populate output structure
+    out_frame->fb = fb;
     out_frame->timestamp_us = esp_timer_get_time();
-    out_frame->sequence     = ++s_frame_count;
+    out_frame->sequence = ++s_frame_count;
 
-    ESP_LOGI(TAG, "Frame #%"PRIu32" captured: %zu bytes (flash=%s)",
-             out_frame->sequence, fb->len,
-             using_flash ? "yes" : "no");
+    ESP_LOGI(TAG, "Captured Frame #%"PRIu32" [%zu bytes]", s_frame_count, fb->len);
+    
     return ESP_OK;
-}
-
-void image_capture_return_frame(capture_frame_t *frame)
-{
-    if (!frame || !frame->fb) return;
-    esp_camera_fb_return(frame->fb);
-    frame->fb = NULL;
-}
-
-uint32_t image_capture_total_count(void)
-{
-    return s_frame_count;
 }
