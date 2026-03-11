@@ -74,10 +74,14 @@ idf.py add-dependency "espressif/esp32-camera"
 ```
 
 ### Step 3: Flash ESP32
+
+```bash
 # Read the esp 32 doc for setup
 # https://docs.espressif.com/projects/esp-idf/en/v4.3/esp32/get-started/index.html
 # Alias enabled: alias get_idf='. $HOME/esp/esp-idf/export.sh' 
-# loads the right path to profile: source ~/.profile
+# Loads the right path to profile: source ~/.profile
+# Loads the dev env: get_idf
+```bash
 
 ```bash
 # Grant permissions: 
@@ -96,8 +100,8 @@ idf.py -p /dev/ttyUSB0 flash monitor
 ```
 
 ### Step 4: Test
-# Enable test mode for bench validation (uploads every 60 s)
-# → Camera Web Server Configuration → Test Mode → Enable test upload mode
+Enable test mode for bench validation (uploads every 60 s)
+menuconfig → Camera Web Server Configuration → Test Mode → Enable test upload mode
 
 ---
 
@@ -199,12 +203,6 @@ esp_app/               # ESP32
 - [ ] Tested full capture-upload cycle
 - [ ] Measured battery consumption
 - [ ] Server has enough storage
-
----
-
-## 📝 License
-
-Public Domain / CC0
 
 ---
 

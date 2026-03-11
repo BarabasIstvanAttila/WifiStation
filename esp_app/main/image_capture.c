@@ -20,6 +20,7 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "esp_timer.h"
 
 static const char *TAG = "image_capture";
 static uint32_t s_frame_count = 0;
@@ -75,4 +76,16 @@ esp_err_t image_capture_acquire_frame(capture_frame_t *out_frame) {
     ESP_LOGI(TAG, "Captured Frame #%"PRIu32" [%zu bytes]", s_frame_count, fb->len);
     
     return ESP_OK;
+}
+
+void image_capture_return_frame(capture_frame_t *frame)
+{
+    if (!frame || !frame->fb) return;
+    esp_camera_fb_return(frame->fb);
+    frame->fb = NULL;
+}
+
+uint32_t image_capture_total_count(void)
+{
+    return s_frame_count;
 }
