@@ -174,6 +174,9 @@ void app_main(void)
     ESP_ERROR_CHECK(camera_hal_config_for_board(&cam_cfg, APP_CAMERA_BOARD));
     ESP_ERROR_CHECK(camera_hal_init(&cam_cfg));
 
+    ESP_ERROR_CHECK(image_capture_init());
+    ESP_ERROR_CHECK(image_capture_tune_exposure());
+
     /* ── 3. WiFi ─────────────────────────────────────────────────────────── */
     wifi_manager_register_state_cb(on_wifi_state_change, NULL);
 

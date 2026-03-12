@@ -103,7 +103,7 @@ esp_err_t image_capture_acquire_frame(capture_frame_t *out_frame)
     if (!s) {
         ESP_LOGE(TAG, "Sensor not initialized!");
     } else {
-        ESP_LOGI(TAG, "Sensor model: 0x%04x, status: %d", s->id.pid, s->status);
+        ESP_LOGI(TAG, "Sensor model:-, status: %d", s->status);
     }
 
     /* Capture the well-exposed frame */
